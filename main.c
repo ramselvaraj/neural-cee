@@ -1,3 +1,5 @@
+#include <stdlib.h>
+#include <time.h>
 #include <stdio.h>
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
@@ -9,22 +11,43 @@
 
 #define IMAGE_WIDTH 128
 #define IMAGE_HEIGHT 128
+#define IMAGE_CHANNELS 3
 #define TRAIN_COUNT 100
+#define TEST_COUNT 10
 
-float cat_train[TRAIN_COUNT][IMAGE_WIDTH * IMAGE_HEIGHT * 3];
-float dog_train[TRAIN_COUNT][IMAGE_WIDTH * IMAGE_HEIGHT * 3];
+float cat_train[TRAIN_COUNT][IMAGE_WIDTH * IMAGE_HEIGHT * IMAGE_CHANNELS];
+float dog_train[TRAIN_COUNT][IMAGE_WIDTH * IMAGE_HEIGHT * IMAGE_CHANNELS];
+float cat_test[TEST_COUNT][IMAGE_WIDTH * IMAGE_HEIGHT * IMAGE_CHANNELS];
+float dog_test[TEST_COUNT][IMAGE_WIDTH * IMAGE_HEIGHT * IMAGE_CHANNELS];
+
+
+float dot_product(const float *xs, const float *ys, int n){
+  float sum = 0;
+  for (int i = 0; i < n;i++){
+    sum += xs[i] * ys[i];
+  }
+  return sum;
+}
+
+float rand11(){
+  return (rand() / (float)RAND_MAX - 0.5) * 2.0;
+}
+
+float sigmoid(float x){
+  return 1.0/(1.0 + expf(-x));
+}
 
 void load_image(const char *filename, float *image){
   int width, height, channels;
 
-  float * data = stbi_loadf(filename, &width, &height, &channels, 3);
+  float * data = stbi_loadf(filename, &width, &height, &channels, IMAGE_CHANNELS);
 
   stbir_resize_float_linear(data, width, height, 0, image, IMAGE_WIDTH, IMAGE_HEIGHT, 0, STBIR_RGB);
 
   stbi_image_free(data);
 }
 
-void load_dataset(const char *path, const char *label, int count, float train[][IMAGE_WIDTH*IMAGE_HEIGHT*3]){
+void load_dataset(const char *path, const char *label, int count, float train[][IMAGE_WIDTH*IMAGE_HEIGHT*IMAGE_CHANNELS]){
   for (int i = 0; i < count; i++){
     char filename[128] = {0};
     sprintf(filename, "%s/%s.%d.jpg", path, label, i);
@@ -32,20 +55,52 @@ void load_dataset(const char *path, const char *label, int count, float train[][
   } 
 }
 
+typedef struct neural_network{
+  float weights_input[IMAGE_WIDTH * IMAGE_HEIGHT * IMAGE_CHANNELS];
+  float bias_input;
+} neural_network;
+
+void nn_init(neural_network *nn){
+  for(int i = 0; i < IMAGE_WIDTH * IMAGE_HEIGHT * IMAGE_CHANNELS; i++){
+    nn->weights_input[i] = rand11();
+  }
+  nn->bias_input = rand11();
+}
+
+float nn_forward(const neural_network *nn, float *x){
+  float z = dot_product(nn->weights_input, x, IMAGE_WIDTH * IMAGE_HEIGHT * IMAGE_CHANNELS) + nn->bias_input;
+  float y = sigmoid(z);
+  return y;
+}
+
 int main(){
-  //float image[IMAGE_WIDTH * IMAGE_HEIGHT * 3] = {0};
-  //load_image("./data/train/cat.0.jpg", image);
+  srand(time(NULL));
+  neural_network nn;
+  nn_init(&nn);
 
   load_dataset("./data/train", "cat", TRAIN_COUNT, cat_train);
   load_dataset("./data/train", "dog", TRAIN_COUNT, dog_train);
+  //load_dataset("./data/test1", "cat", TEST_COUNT, cat_test);
+  //load_dataset("./data/test1", "dog", TEST_COUNT, dog_test);
 
-  for (int j = 0; j < TRAIN_COUNT; j++){
-    unsigned char some_data[IMAGE_WIDTH * IMAGE_HEIGHT * 3];
-    for (int i = 0; i < IMAGE_WIDTH * IMAGE_HEIGHT * 3; i++){
-      some_data[i] = (unsigned char)(dog_train[j][i] * 255);
+  int total = 2 * TRAIN_COUNT;
+  int correct = 0;
+
+  for (int i = 0; i < TRAIN_COUNT; i++){
+    float prediction = nn_forward(&nn, cat_train[i]);
+    if (prediction >= 0.5) {
+      correct++;
     }
-    char filename[128] = {0};
-    sprintf(filename,"examples/output%d.jpg", j);
-    stbi_write_jpg(filename, IMAGE_WIDTH, IMAGE_HEIGHT, 3, some_data, 100);
   }
- }
+
+  for (int i = 0; i < TRAIN_COUNT; i++){
+    float prediction = nn_forward(&nn, dog_train[i]);
+    //printf("%f")
+    if (prediction < 0.5){
+      correct++;
+    }
+  }
+
+  printf("%d/%d correctly identified.\n", correct, total);
+  printf("Accuracy: %f\n", correct/(float)total);
+}
