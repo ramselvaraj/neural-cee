@@ -88,8 +88,11 @@ void nn_gradient(neural_network *nn, float y_target, neural_network *grad){
   // dC/dw_1 = dC/da_1 * da_1/dz_1 * dz_1/dw_1
   float dC_da_1 = 2 * (nn->a_1 - y_target);
   float da_1_dz_1 = sigmoid(nn->a_1) * (1-sigmoid(nn->a_1));
-  for (int i = 0; IMAGE_WIDTH * IMAGE_HEIGHT * IMAGE_CHANNELS; i++){
+  for (int i = 0; i < IMAGE_WIDTH * IMAGE_HEIGHT * IMAGE_CHANNELS; i++){
     float dz_1_dw_1 = nn->a_0[i];
+    
+    //float dz_1_dw_1 = 1;
+    
     grad->w_1[i] = dC_da_1 * da_1_dz_1 * dz_1_dw_1;
   }
 
@@ -122,7 +125,6 @@ int compute_loss(neural_network *nn, float train[][IMAGE_WIDTH * IMAGE_HEIGHT * 
 
 void learn(neural_network *nn, float train[][IMAGE_WIDTH * IMAGE_HEIGHT * IMAGE_CHANNELS],float y_target, float learning_rate){
   // what happens in one epoch
-  printf("HIII");
   for(int i = 0; i < TRAIN_COUNT; i++){
     neural_network grad_iter;
     float y = nn_forward(nn, train[i]);
@@ -131,47 +133,53 @@ void learn(neural_network *nn, float train[][IMAGE_WIDTH * IMAGE_HEIGHT * IMAGE_
   }
 }
 
-int main(){
-  srand(time(NULL));
-  neural_network nn;
-  nn_init(&nn);
-
-  load_dataset("./data/train", "cat", TRAIN_COUNT, cat_train);
-  //load_dataset("./data/train", "dog", TRAIN_COUNT, dog_train);
-  //load_dataset("./data/test1", "cat", TEST_COUNT, cat_test);
-  //load_dataset("./data/test1", "dog", TEST_COUNT, dog_test);
-
-  //BEFORE TRAINING
+float accuracy(neural_network *nn){
   int total = 2 * TRAIN_COUNT;
   int correct = 0;
 
   for (int i = 0; i < TRAIN_COUNT; i++){
-    float prediction = nn_forward(&nn, cat_train[i]);
+    float prediction = nn_forward(nn, cat_train[i]);
     if (prediction >= 0.5) {
       correct++;
     }
   }
 
   for (int i = 0; i < TRAIN_COUNT; i++){
-    float prediction = nn_forward(&nn, dog_train[i]);
+    float prediction = nn_forward(nn, dog_train[i]);
     //printf("%f")
     if (prediction < 0.5){
       correct++;
     }
   }
 
-  printf("BEFORE TRAINING\n%d/%d correctly identified.\n", correct, total);
-  printf("Accuracy: %f\n", correct/(float)total);
+  //printf("%d/%d correctly identified.\n", correct, total);
+  //printf("Accuracy: %f\n", correct/(float)total);
+  return correct/(float)total;
+}
 
+int main(){
+  srand(time(NULL));
+  neural_network nn;
+  nn_init(&nn);
 
+  load_dataset("./data/train", "cat", TRAIN_COUNT, cat_train);
+  load_dataset("./data/train", "dog", TRAIN_COUNT, dog_train);
+  //load_dataset("./data/test1", "cat", TEST_COUNT, cat_test);
+  //load_dataset("./data/test1", "dog", TEST_COUNT, dog_test);
+
+  //BEFORE TRAINING
+  float acc_before = accuracy(&nn);
   //TRAINING
   for(int i = 0; i < EPOCHS; i++){
-    printf("HIIIII");
     learn(&nn, cat_train, CAT_LABEL, LEARNING_RATE);
-    //learn(&nn, dog_train, DOG_LABEL, LEARNING_RATE);
-    //float cat_loss = compute_loss(&nn, cat_train, CAT_LABEL);
-    //float dog_loss = compute_loss(&nn, dog_train, DOG_LABEL);
-    //float loss = (cat_loss + dog_loss)/2.0;
+    learn(&nn, dog_train, DOG_LABEL, LEARNING_RATE);
+    float cat_loss = compute_loss(&nn, cat_train, CAT_LABEL);
+    float dog_loss = compute_loss(&nn, dog_train, DOG_LABEL);
+    float loss = (cat_loss + dog_loss)/2.0;
+    printf("Loss: %f\n", loss);
   }
+
+  float acc_after = accuracy(&nn);
+  printf("BEFORE TRAINING: %f \nAFTER TRAINING: %f\n", acc_before, acc_after);
 
 }
